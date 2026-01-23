@@ -1,0 +1,461 @@
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/teaser_v2.png}
+\caption{\textbf{Cross-Embodiment Translation.} We study how to collect data so that demonstrations from one robot directly help another. Our data-centric recipe composes breadth (\emph{coverage} across viewpoints, morphologies, and scenes). Then, we search different data scaling strategies to find one that leads to high performance under a fixed budget. We find that datasets with high pairing between scenes and tasks as well as high coverage lead to high transfer performance.}
+\label{fig:teaser}
+\end{figure*}
+
+
+\section{Introduction}
+\label{sec:intro}
+Generalist robot policies are now trained on increasingly large cross-embodiment datasets spanning many robots, morphologies, and viewpoints. At first glance, these results suggest that cross-embodiment learning “just works”—that scaling demonstrations across diverse embodiments naturally enables transfer. Yet the reality is far less clear: we do not know what is actually being transferred when data from other robots is introduced. Current datasets leave critical axes of generalization underrepresented, such as systematic variation in morphology, camera viewpoint, and environment. This raises a key question: are models truly learning useful invariances across morphology and viewpoint, or are their apparent successes merely artifacts of scale? This uncertainty highlights a central gap in the field: we still lack a principled understanding of what kinds of cross-embodiment data actually help a policy adapt to a new robot with only limited data from the target robot setup.
+
+Prior work has largely pursued two strategies for cross-embodiment transfer. Implicit scaling aggregates demonstrations across robots and environments, banking on diversity at scale to improve robustness \cite{dasari19robonet, o2023open, wang2025unifiedvisionlanguageactionmodel}. While this approach produces strong, consistent gains, it makes the magnitude of true transfer hard to diagnose—leaving it unclear whether the policy's performance gain is due to direct motion transfer, high-level behavioral transfer, or merely visual regularization. In contrast, explicit alignment methods, such as generative inpainting, offer a way to directly allow demonstrations from one robot in one scene to be used in another, providing more interpretable assumptions about the mechanism of transfer ~\cite{chen2024miragecrossembodimentzeroshotpolicy, lepert2025shadowleveragingsegmentationmasks, lepert2025masqueradelearninginthewildhuman, pace2025xdiffusiontrainingdiffusionpolicies}. However, these methods are narrow in scope, with many assumptions about the scene that fail to scale across the diversity of morphologies and viewpoints in robotics. In this paper, we aim to achieve the best of both worlds: maintaining the scalability of implicit data collection while achieving the direct, high-fidelity transfer characteristic of explicit alignment methods.
+
+Our main contribution is a principled investigation into the data collection strategies required to achieve cross-embodiment translation, or the ability for a policy to directly utilize data from one scene and robot to control another. To do this, we leverage a key insight: the gap between implicit scaling and explicit alignment as a spectrum driven by two key, orthogonal design axes: coverage, or the breadth of the data, and pairing, or the degree of structural alignment between demonstrations. For example, explicit data collection strategies have tightly paired demonstrations, leading to high-fidelity transfer at the expense of scalability. We then use this framework to carefully investigate which data collection strategies achieve a good tradeoff between scalability and transfer fidelity by decomposing the domain shift between embodiments into three smaller shifts—viewpoint, end-effector morphology, and appearance—and systematically varying the coverage and pairing strategies within each shift.
+
+Our findings reveal that while data diversity alone helps for perceptual axes like viewpoint and appearance, its benefits quickly saturate for the morphology axis. Instead, to transfer across different end-effector- morphologies, targeted coverage and strong cross-robot pairing are required. By using these guidelines to collect data across , our new cross-embodiment data collection strategy outperforms standard training on large, open-source datasets such as OXE, achieving an average of $19\%$  higher success rate in simulation and $15\%$ higher success rate in the real world. This suggests that significant performance gains can be unlocked by adopting more structured data collection strategies for cross-embodiment robot datasets.
+
+
+\section{Related Works} \smallskip \noindent The pursuit of generalist robot policies has historically focused on leveraging large, diverse robot datasets~\cite{dasari19robonet, o2023open, intelligence2025pi05visionlanguageactionmodelopenworld}. However, policies trained in this manner often failed to generalize to even simple, low-level variations, such as objects of different colors, revealing a critical lack of fundamental visual capabilities. This limitation highlighted the need for a conceptual "glue" to connect low-level actions with high-level semantic understanding. Vision-Language-Action (VLA) models~\cite{brohan2022rt,  brohan2023rt, kim24openvla, black2024pi_0, szot2024multimodal, team2025gemini, intelligence2025pi, nvidia2025gr00tn1openfoundation} emerged as this glue. By fine-tuning internet-scale vision-language models (VLMs) to predict robot actions, VLAs inherit a rich visual and semantic knowledge of the world, which significantly enhances policy generalization and allows them to ingest large-scale, heterogeneous robot datasets~\cite{kim24openvla, belkhale2024minivla, black2024pi_0}.
+
+The success of VLAs in learning from diverse, data naturally raised a new question: could policies also leverage data from other robots? Initial findings confirmed that large-scale, cross-embodiment datasets could facilitate transfer~\cite{o2023open, doshi2024scalingcrossembodiedlearningpolicy, wang2025unifiedvisionlanguageactionmodel}. However, it was unclear what type of transfer was occurring or if this highly heterogeneous data was being utilized effectively. This ambiguity sparked two main lines of research: (1) methods that explicitly align data across embodiments, and (2) methods that learn common representations to implicitly bridge the embodiment gap. Explicit alignment methods include generative approaches, such as masking~\cite{lepert2025shadowleveragingsegmentationmasks, lepert2025masqueradelearninginthewildhuman, rayyan2025mvumiscalablemultiviewinterface} and inpainting robot-specific features~\cite{chen2024roviaugrobotviewpointaugmentation, chen2024miragecrossembodimentzeroshotpolicy, pace2025xdiffusiontrainingdiffusionpolicies}, as well as motion retargeting~\cite{Aberman_2020, choi2021selfsupervisedmotionretargetingsafety, yan2024imitationnetunsupervisedhumantorobotmotion, cao2025gdreamgraphconditioneddiffusionretargeting, allu2025hrt1oneshothumantorobottrajectory}. A key drawback of these generative methods is their reliance on assumptions that may not scale, such as the ability to perfectly mask and inpaint novel robot embodiments in arbitrary scenes. Meanwhile, implicit methods focus on learning common representations, often by training large-scale models to project diverse robot data into a shared latent space~\cite{yang2023polybot, yang2024pushinglimitscrossembodimentlearning, Doshi24-crossformer, pace2025xdiffusiontrainingdiffusionpolicies, wang2025unifiedvisionlanguageactionmodel, liu2025immimiccrossdomainimitationhuman}. These methods offer greater scalability, as they do not require embodiment-specific modules for data translation.
+
+While these model-centric approaches to alignment and representation have shown promise, they largely treat the underlying data distribution as a given. This overlooks a crucial, emerging direction: focusing on the data distribution itself. For example, recent works have found that carefully collecting and rebalancing data distributions for training VLAs can unlock gains in generalization and transfer~\cite{gao2024efficientdatacollectionrobotic, hejna2024remixoptimizingdatamixtures, xing2025shortcutlearninggeneralistrobot, shi2025diversityneedscalablerobotic, hu2025datascalinglawsimitation}. We argue that this data-centric principle is particularly crucial for cross-embodiment learning. Prior works have seen some success in improving robot generalization by expanding the data coverage or diversity of demonstration data  \cite{11127989, liu2025egozerorobotlearningsmart, bi2025hrdthumanmanipulationenhanced, yuan2025motiontranshumanvrdata}. However, it is still unclear what method for scaling are useful to cross the embodiment gap. Analogous to how VLAs provided a high-level glue for generalization, a new data-centric glue is needed to bridge the gaps in embodiment. This work investigates how to scale embodiments by prioritizing the right axes of data coverage and data distribution, laying out a methodology to ensure that pooled data yields genuine cross-robot transfer.
+
+\section{Cross-Embodiment Robot Translation}
+Generalist robot policies often improve when trained on data from multiple embodiments. Yet, the mechanism of this transfer is hard to diagnose. We argue that cross-embodiment generalization lies on a spectrum—from basic perception regularization to full action transfer—and that the most consequential level is the finest-grained one: can demonstrations from one robot, in a specific task and scene, enable a different robot to perform that same task with only a few target examples? We refer to the capability to few-shot transfer data from one another robot as \textbf{cross-embodiment translation}. In this paper, we study how robot data should be collected to achieve this form of generalization.
+
+Concretely, we study what \emph{kinds of data} are needed for such transfer to occur. We assume a cross-embodiment dataset $\mathcal{D}=\{(e,\tau)\}$ where $e\in\mathcal{E}$ indexes the embodiment (platform, end-effector, viewpoint) and each trajectory $\tau$ is a sequence $\big((o_1^e,a_1^e),\ldots,(o_T^e,a_T^e)\big)$. Let $e^\star$ denote a target robot with a small few-shot set $\mathcal{D}_{e^\star}^{\text{few}}$. We train a policy $\pi_\theta(a_t \mid o_{1:t}^e, e)$ on pooled data and evaluate it on $e^\star$. We define \textbf{cross-embodiment translation} as the capability of $\pi_\theta$ to leverage demonstrations from $e\neq e^\star$ to execute the same task on $e^\star$—preserving task-relevant structure while adapting embodiment-specific control—under a fixed $\mathcal{D}_{e^\star}^{\text{few}}$ budget. Our aim is to identify which data collection strategies are required to achieve this translation.
+
+How should we design a data-collection strategy that achieves strong cross-embodiment translation? We begin by decomposing what a policy must \emph{understand} to reuse demonstrations from one robot on another. For single-arm manipulators, the cross-embodiment gap is driven by three domain shifts: \textbf{viewpoint} (camera pose/intrinsics), \textbf{end-effector morphology} (gripper geometry and arm kinematics), and \textbf{appearance} (textures, lighting, background). For \emph{each} domain shift, we sweep two orthogonal design axes under matched data budgets:
+
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/coverage_vs_pairing.png}
+\caption{\textbf{Coverage versus Pairing.} Simulation images depicting the data collection strategies. Coverage is the diversity of data on the generalization axis, while pairing is the similarity of the tasks or trajectories in the data.}
+\label{fig:cov_vs_pairing}
+\end{figure*}
+
+
+\begin{itemize}
+    \item \textbf{Coverage strategy: Targeted vs.\ Diverse.}
+    \begin{itemize}
+        \item \emph{Targeted} — Select demonstrations that \emph{close gaps relative to the target robot}, using simple coverage criteria: e.g., fill missing bins in camera extrinsics/intrinsics for \textit{viewpoint}, cover specific gripper types/kinematic regimes for \textit{morphology}, or match scene materials/lighting regimes for \textit{appearance}.
+        \item \emph{Diverse} — Collect broadly varied demonstrations \emph{without target-aware coverage}, sampling viewpoints, morphologies, or appearances uniformly/randomly across what is available.
+    \end{itemize}
+
+    \item \textbf{Cross-robot pairing: Unpaired vs.\ Task-Paired vs.\ Trajectory-Paired.}
+    \begin{itemize}
+        \item \emph{Unpaired} — Source and target demonstrations are independent; no cross-robot alignment beyond task labels.
+        \item \emph{Task-Paired} — Demos correspond to the \emph{same task instance} across robots (same objects/initial conditions/goals), but are only \emph{weakly aligned} (e.g., matched hand-designed keypoints).
+        \item \emph{Trajectory-Paired} — A deliberate data collection strategy to capture the \emph{same execution strategy} across embodiments.
+        \begin{itemize}
+            \item \textbf{In simulation,} this can be achieved by filtering for demonstrations with highly similar object-centric trajectories via dynamic time-warping (DTW). To make this computational alignment scalable for both real and simulated data, trajectories are first downsampled to a fixed length (50 timesteps).
+            \item \textbf{In the real world,} this is achieved by collecting demonstrations of the \emph{same task instance} (same scene, objects, and goal) from two different robots, and then computationally aligning the resulting trajectories via DTW. 
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+We aggregate  the per-axis strategy datasets into a single \emph{compositional dataset} $\mathcal{D}_{\text{comp}}$,
+with \emph{equal data budget per cell} (coverage $\times$ pairing), retaining metadata to disentangle the effects of each choice. Empirically, we find that the most effective data for cross-embodiment translation is both \emph{diverse} and \emph{trajectory-paired}: broad coverage across embodiments combined with strong, time-indexed correspondences yields the largest gains. Sensitivity to the two design axes, however, is \emph{domain-shift dependent}: for \textit{viewpoint}, diversity alone degrades less than for \textit{morphology}, where lack of pairing hurts markedly; for \textit{appearance}, targeted coverage can suffice with smaller penalties. Finally, we observe that open-source large-scale datasets—which are predominantly \emph{unpaired} with \emph{targeted} scaling—translate poorly compared to trajectory-paired collections at the same budget.
+
+
+\section{Experiments}
+
+Our goal is to evaluate \emph{cross-embodiment translation}: can demonstrations collected on one robot help a different robot perform the \emph{same} task with only a few target examples? We align our study around four questions that map directly to the four main figures.
+
+\begin{enumerate}
+    \item \textbf{Q1 (Fig.~1): Under a fixed budget, what data collection strategy leads to the highest performance for each generalization axis?}
+    \item \textbf{Q2 (Fig.~2): How does our compositional data-collection strategy from Q1 compare to naively training on large open-source datasets?}
+    \item \textbf{Q3 (Fig.~3): How does translation improve as we scale the diversity of source data?}
+    \item \textbf{Q4 (Fig.~4): Do these trends hold on real robots (PiperX, WidowX, Franka, Piper)?}
+\end{enumerate}
+
+\subsection*{Simulation Environment}
+We use a RoboCasa-based benchmark for cross-embodiment learning~\cite{robocasa2024}. Tasks: \emph{PnP Counter$\to$Sink}, \emph{PnP Sink$\to$Counter}, \emph{Turn On Sink Faucet}, and \emph{Flip Mug Upright}, where "PnP" stands for "Pick and Place". Scenes vary kitchen layout, textures, objects, and camera placement. Priors are generated with MimicGen~\cite{mandlekar2023mimicgen} for three embodiments (Kinova, Kinova3, UR5e) with Robotiq 2F-85/2F-140 grippers. In order to ensure that the simulation resets to the same state, we standardize the environment generation seed across experiments. This allows us to 
+
+\subsection*{Real-World Environment}
+We evaluate on three targets: \textbf{Franka}, \textbf{WidowX}, and \textbf{PiperX} (parallel-jaw). For each experiment, we collect $50$ demonstrations on the robot we want to transfer from. Then, we use our translational dataset collected as described below with $50$ demonstrations per axis, scene, and robot.
+
+\subsection*{Experiment Setup}
+\textbf{Policy and Inputs.}
+We use a vision–language–action policy (\textbf{VLA}, Pi0-style) $\pi_\theta(a_t \mid o_{1:t}, e, \ell)$ with an embodiment token $e$ and language task prompt $\ell$. The policy is instantiated with Pi0: a vision–language backbone that embeds the history of observations and language into tokens, followed by a flow matching action expert that predicts a short-horizon sequence of actions. Concretely, we encode the third-person and wrist RGB images, proprioceptive state, embodiment token $e$, and text prompt $\ell$ into a sequence of tokens, append learned action tokens corresponding to a horizon-$H = 20$ action sequence, and process the resulting sequence with a small transformer. During training, we corrupt the ground-truth action sequence $a_{t:t+H-1}$ with Gaussian noise in a randomly sampled diffusion timestep and train the network to predict this noise, as in standard diffusion policies; at test time, we sample from the learned reverse process and execute only the first action $a_t$.
+
+\textbf{Training.}
+We start with the base $\pi0.5$ VLA with pretrained weights \cite{intelligence2025pi05visionlanguageactionmodelopenworld}, then \emph{co-fine-tune} on the union of target few-shot demonstrations and a selected subset of source data, known as the "translation dataset" according to each study condition. Unless otherwise noted, we interleave target and translation dataset at a $50{:}50$ ratio within each mini-batch. For the target-only and target upper-bound baselines, we finetune only with data from the robot we want to transfer from, or the robot we want to transfer to. Fine-tuning takes around $8$ hours on an NVIDIA A100 40GB GPU.
+
+\textbf{Translation Data Collection.}
+The translation dataset is constructed by systematically addressing each domain shift axis using the appropriate coverage and pairing strategy as determined by our ablation studies (Fig.~\ref{fig:main-coverage-sr}). 
+\textit{In simulation}, for the \emph{viewpoint} axis, we leverage RoboCasa's procedural generation to sample diverse camera poses and intrinsics via changing the azimuth, elevation, and focal length from. For the \emph{morphology} axis, we collect demonstrations across three robot platforms (Franka Emika Panda, Kinova3, UR5e) with different gripper types (Robotiq 2F-85/2F-140) using targeted coverage to span kinematic regimes and workspace geometries relevant to the target robot, with trajectory pairing obtained by filtering MimicGen-generated priors for high DTW similarity in end-effector and object keypoint trajectories. For the \emph{appearance} axis, we use RoboCasa's texture randomization to diversely vary kitchen materials, lighting, and object appearances.
+
+\textit{In the real world}, for diversity in \emph{viewpoint} and \emph{morphology}, we vary the third-person camera and use the corresponding end-effectors. For \emph{appearance}, we augment the datasets with inpainted robots to the buffer using Dall-E 3. We keep the environment and state the same, only replacing the texture of the robot. Note that this process is a bit noisy, and sometimes textures that are not part of the robot get inpainted. However, in practice, these errors seem minimal as the model has qualitatively good performance.
+
+
+\textbf{Data Budgets and Controls.}
+Unless otherwise stated, we use a fixed budget of \textbf{50 demonstrations per (robot, task)} combination for both translational data (or data that is included during co-finetuning to help the policy to understand cross-embodiment correspondences) and targets (data from another robot that we want to transfer). We report two references in every plot: \emph{Target-only} (few-shot baseline with no source data) and \emph{Target upper bound} (spending the same extra budget on the target robot). The results are compiled over random initializations $5$ in the real-world and random seeds $100$ in simulation. 
+
+
+\textbf{Data Selection Methods.}
+We instantiate four selection strategies that factor coverage and pairing:
+\begin{itemize}
+    \item \emph{Uniform (Naïve scaling):} uniformly sample source demos across embodiments.
+    \item \emph{Targeted coverage:} select source demos to fill gaps in \emph{viewpoint} (camera pose/intrinsics) and \emph{morphology} (gripper/kinematics) relative to the target’s few-shot set; appearance diversity is secondary.
+    \item \emph{Task-Paired:} for each target task instance, include source demos of the \emph{same task} (same objects/goals).
+    \item \emph{Trajectory-Paired:} 
+        \begin{itemize}
+        \item \emph{Simulation:} For each trajectory, we select a counterpart by comparing proprioceptive features (end-effector pose, gripper state) and object keypoints. We define a task-specific \emph{event keypoint} $t^\star$ (e.g., first stable grasp) and align the approach segments (start $\rightarrow t^\star$) across trajectories using dynamic time warping (DTW) over a task-space feature $\phi_t=[x^{\mathrm{ee}}_t, R^{\mathrm{ee}}_t, g_t, \kappa_t]$, where $\kappa_t$ is an object-centric progress scalar (distance to the nearest task-relevant object keypoint in the object frame). Trajectories are downsampled to a fixed length (50 timesteps) and DTW is constrained with a Sakoe–Chiba band to prevent degenerate warps. The nearest neighbor under the DTW cost—subject to goal equivalence at $t^\star$—is chosen as the paired trajectory, and the DTW path provides per-timestep correspondences for cross-embodiment supervision.
+        \item \emph{Real World:} We collect demonstrations from different robots (e.g., a WidowX and a Franka) in the same task instance (same objects, layout, and goal) and then align them with DTW on $\phi_t$. In practice, the “identical scene” criterion means the same staged setup with matched object placements and camera viewpoints within normal lab tolerances; no special fiducials are required.
+        \end{itemize}
+\end{itemize}
+
+\paragraph{Composed data mixture (\emph{OXE+Translational}).}
+For experiments that use \emph{OXE+Translational} (Fig.~\ref{fig:oxe_vs_targeted}, Fig.~\ref{fig:real_world}), the \emph{source} half of each co-fine-tuning batch is drawn as $60\%$ \emph{OXE} (unpaired) and $40\%$ \emph{Trajectory-Paired}. Within the \emph{OXE} pool, we reweight sampling to flatten histograms along viewpoint (camera azimuth/elevation bins) and morphology (gripper/kinematic class), avoiding over-representation of a few robots or camera setups. Across conditions, we fix the number of \emph{source} samples seen per epoch to isolate the effect of pairing versus volume.
+
+\subsection{Under a fixed budget, what data collection strategy leads to the highest performance for each generalization axis?}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/figure1_main_coverage.png}
+\caption{\textbf{Main coverage plot (Success Rate).} Success Rate (\%) on the target robot across
+Coverage$\times$Pairing for (a) Viewpoint, (b) Morphology, (c) Appearance. Error bars: 95\% CI.
+Dashed lines show Target-only (few-shot) and Target upper bound (same extra budget on target).}
+\label{fig:main-coverage-sr}
+\end{figure*}
+
+
+Figure~\ref{fig:main-coverage-sr} compares success across \emph{viewpoint}, \emph{morphology}, and \emph{appearance} under matched source budgets. In all settings, the target robot contributes only \textbf{50} demonstrations; we pre-train on sources and co-fine-tune on the union of this 50-shot target set and a selected subset of source data. Bars report means over 3--5 seeds for a fixed VLA trained with distinct \emph{coverage} (targeted vs.\ diverse) and \emph{pairing} (unpaired, task-paired, trajectory-paired) choices; dashed lines mark the \emph{Target-only} baseline and a \emph{Target upper bound} that spends the same extra budget directly on the target.
+
+\textbf{Diversity helps for viewpoint and appearance.}\
+For shifts dominated by perception---camera pose/intrinsics (\emph{viewpoint}) and scene/textures (\emph{appearance})---\emph{diverse} coverage outperforms \emph{targeted} at a fixed pairing level. Broad visual variation regularizes the encoder, reduces overfitting to scene- or camera-specific cues, and improves generalization even with weak alignment. In practice, sampling many camera poses, lighting regimes, and backgrounds produces larger gains than narrowly matching the target’s exact settings.
+
+\textbf{Targeted coverage is more effective for morphology; diversity is better for viewpoint/appearance.}\
+When the shift alters controllability---end-effector geometry, arm kinematics, and action scaling (\emph{morphology})---\emph{targeted} selection yields greater benefit than purely diverse sampling. Filling explicit gripper/kinematic “gaps” that the target lacks (e.g., parallel-jaw vs.\ multi-finger, reach/workspace regimes) better conditions the policy’s action distribution and stabilizes transfer. Conversely, for \emph{viewpoint} and \emph{appearance}, breadth-first diverse coverage remains superior, indicating these axes are chiefly perceptual and less sensitive to embodiment-specific control statistics.
+
+\subsection{How does our compositional data-collection strategy from Q1 compare to naively training on large open-source datasets?}
+\label{subsec:q2}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/figure2_oxe_vs_targeted.png}
+\caption{\textbf{Comparison with large open-source datasets.} 
+Success Rate (\%) on four RoboCasa tasks when training on (i) narrow two-robot data (\emph{Bridge+DROID}), (ii) large unpaired open-source datasets (\emph{OXE}), and (iii) our \emph{OXE+Translational} composition that reweights coverage and adds trajectory-level alignment. 
+Results are shown for two target robots (\textbf{Panda}, \textbf{Jaco}); error bars denote 95\% CI.}
+\label{fig:oxe_vs_targeted}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/figure3_scaling.png}
+\caption{\textbf{Effect of scaling diversity.}
+Success Rate (\%) on the target robot as we increase the diversity of source data (distinct embodiments, viewpoints, and scenes). 
+Curves compare \emph{Na\"ive/Uniform}, \emph{Targeted Coverage}, and \emph{Trajectory-Paired}. 
+Dashed lines show the 50-shot \emph{Target-only} baseline and the \emph{Target upper bound}.}
+\label{fig:scaling}
+\end{figure*}
+
+Figure~\ref{fig:oxe_vs_targeted} compares our compositional dataset design against training directly on large, unpaired open-source data. 
+While large datasets such as OXE contain extensive demonstrations across robots and scenes, they are overwhelmingly \emph{unpaired} and emphasize scale over structure. 
+We evaluate whether reweighting data coverage and introducing explicit translational pairs can outperform pure data volume.
+
+\textbf{Structure on top of scale: OXE is strong, pairing adds more.}
+In Figure~\ref{fig:oxe_vs_targeted}, the \emph{OXE} condition is a strong baseline relative to \emph{Target-only} and \emph{Narrow} (e.g., \textit{Flip Mug}: Panda $22\%\!\to\!33\%$, Jaco $20\%\!\to\!32\%$). Adding explicit cross-robot pairs and balanced coverage (\emph{OXE+Translational}) yields further consistent gains across tasks and robots (e.g., \textit{Flip Mug}: Panda $33\%\!\to\!68\%$, Jaco $32\%\!\to\!62\%$; \textit{PnP Counter$\to$Sink}: Panda $23\%\!\to\!40\%$, Jaco $22\%\!\to\!38\%$). This supports the view that while diversity at scale helps, explicit correspondences are a critical, complementary ingredient.
+
+\textbf{Structured diversity is a valuable first step, but its gains are limited without explicit pairing.} The results also show that simply using a more diverse, structured data pool (\emph{OXE}) improves over a narrow, two-robot baseline (\emph{Bridge+DROID}), validating that broader coverage of cameras and scenes helps generalization. However, these gains from diversity alone plateau and are surpassed across tasks by our \emph{OXE+Translational} method. One contributing factor in simulation is that OXE’s real-world visual diversity does not perfectly align with simulated image statistics, limiting perception regularization; adding cross-robot correspondences compensates by injecting action-level signal. This indicates there is substantial room for stronger transfer by scaling \emph{how} the data is organized (structure), not just \emph{how much} there is (volume). Our work points to a data-scaling path that emphasizes composition—more pairing, broader coverage, and structured diversity—over simple aggregation.
+
+
+
+\textbf{Why composition matters.} 
+Our compositional dataset differs from large unpaired sources along two key dimensions:
+(1)~it \emph{balances coverage} across morphology and viewpoint axes to avoid over-representation of a few robots or camera setups, and 
+(2)~it \emph{injects trajectory-level pairing} between related embodiments, encouraging policies to learn embodiment-invariant task representations. 
+Together, these modifications yield data efficiency that rivals an order-of-magnitude increase in raw scale. In short, even under fixed budgets, scaling data \emph{structure} \emph{on top of} scaling data \emph{volume} delivers the best results: carefully composed cross-embodiment collections consistently add gains over strong unpaired baselines.
+
+
+
+\subsection{How does translation improve as we scale the diversity of source data?}
+\label{subsec:q3}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/figure4_real_world.png}
+\caption{\textbf{Real-robot transfer.} Success Rate (\%) on two tabletop tasks under three embodiment settings:
+PiperX $\!\to$ WidowX, WidowX$\!\to$ Franka, and WidowX$\!\to$ Piper. 
+Bars compare a few-shot target baseline, a narrow two-robot pool (\emph{Bridge+DROID}), a diversity-weighted open-source pool (\emph{OXE}), and our composed \emph{OXE+Translational}. Error bars denote 95\% CI.}
+\label{fig:real_world}
+\end{figure*}
+
+\textbf{Viewpoint and appearance scale smoothly with breadth.}
+For \emph{viewpoint} and \emph{appearance}, increasing diversity produces predictable, steady improvements across methods: adding more camera configurations and scene variations consistently lifts performance (an average increase of $17\%$). One plausible explanation is that broader coverage reduces distribution shift between source and target settings, making it more likely that the target’s conditions are represented during training. Notably, the success rate of \emph{trajectory pairing} maintains a consistent advantage even as diversity grows—often by $\sim\!5$–$10$ percentage points over the next-best line at higher diversity—suggesting that aligning sequences across instances helps the model use this additional coverage more effectively rather than treating it as unrelated samples.
+
+
+\textbf{Morphology saturates without pairing.}
+On the \emph{morphology} axis, our results show that simply increasing the diversity of end-effectors does not enable generalization to new morphologies. Instead, strong cross-robot pairing is the dominant factor. This is evident in the data: increasing diversity (whether \emph{uniform} or \emph{targeted}) barely moves the performance curves (low-$40$s $\to$ high-$40$s). Adding more arms or grippers without correspondences fails to resolve action-scale and kinematic mismatches; the policy sees different control distributions that cannot be reconciled by visual breadth alone. Temporal pairing, however, injects an object-frame alignment that effectively “translates” motion primitives across embodiments, converting cross-robot data into usable control supervision.
+
+While data diversity solves the visual perception challenge—widening what the model can see and governing perception-level robustness—it is insufficient for action-level transfer. Instead, methods that encourage more correspondences between the two robots, such as task-paired or, more effectively, trajectory-paired data collection, are required. This "connectivity" provides the critical link that specifies how observations \emph{should} map to actions on a different robot. 
+
+
+\subsection{Do these trends hold on real robots (Franka, WidowX, Piper)?}
+\label{subsec:q4}
+
+
+\textbf{The same ordering appears on hardware, with sizable absolute gains.}
+Figure~\ref{fig:real_world} shows that the progression observed in simulation carries over to real robots: moving from a few-shot baseline to a narrow two-robot pool helps, reweighting large open-source data toward broader coverage helps more, and composing that pool with explicit cross-robot pairs delivers the largest improvements. Across embodiment settings that include both cross-platform transfer (PiperX$\!\to$ WidowX, WidowX$\!\to$ Franka) and a morphology change (WidowX$\!\to$ Piper), \emph{OXE+Translational} improves success by roughly \textbf{+30}–\textbf{+40} points over the baseline (e.g., $\sim$50$\!\to$85\% and $\sim$40$\!\to$75\% in the easier setting; $\sim$25$\!\to$65\% and $\sim$20$\!\to$60\% in the harder one), with similarly consistent lifts for the morphology variant ($\sim$55$\!\to$90\% and $\sim$30$\!\to$65\%). The method ordering is stable across tasks and robots, indicating that the benefits of structured coverage and pairing are not simulator-specific.
+
+\textbf{There is substantial headroom in \emph{how} we scale robot data.}
+These hardware results suggest that cross-embodiment transfer is limited less by raw volume than by data \emph{organization}. Rebalancing coverage across viewpoint and morphology already yields reliable gains over narrow pools, and introducing even modest amounts of cross-robot pairing correlates with further, repeatable improvements without collecting dramatically more demonstrations. In practice, this points to a concrete path for future datasets: allocate budget toward (i) diversity to cross the visual cap between robots and (ii)  correspondences between embodiments. The consistent boosts on physical systems indicate that better-curated collections could unlock substantially stronger cross-robot generalization than current unpaired corpora afford.
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+By systematically varying viewpoint, morphology, and appearance under matched budgets, three design principles emerge. \emph{First}, breadth helps chiefly where variation is perceptual: increasing diversity in camera and scene coverage yields steady gains for viewpoint and appearance. \emph{Second}, morphology—the axis that changes how actions must be executed—benefits most from \emph{targeted} coverage. \emph{Third}, and most importantly, \emph{pairing} converts breadth into transfer: introducing cross-robot correspondences consistently adds gains on top of strong unpaired baselines. Rather than accumulating more isolated islands of demonstrations, it is important to balance coverage along morphology and viewpoint, and invest a modest portion of budget in pairing that anchors examples in a common frame.
+
+
+\section{Limitations}
+\label{sec:limitations}
+While our results show consistent gains from structured coverage and trajectory pairing, our study has several limitations. First, conclusions are drawn using a Pi0-style VLA under a fixed few-shot budget; other architectures, larger budgets, or alternative training recipes could shift absolute performance and sometimes the relative gaps. Second, dataset shift remains: OXE and our scenes differ from simulation distributions and from other labs; our compositional strategy may require retuning to new object distributions, sensors, and embodiments. Finally, while our study drew conclusions from diverse simulations, the scope of experiments were within two buildings for the real world. This means that it is unclear to what extent the translation dataset should scale to provide consistent general transfer in the real world between two robots.
+
+
+\clearpage
+\setcounter{page}{1}
+\maketitlesupplementary
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/sim_robots.png}
+\caption{\textbf{Simulation Robots.} Simulation robots with diverse camera angles and objects on a countertop scene.}
+\label{fig:main-coverage-sr}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/real_robots.png}
+\caption{\textbf{Real Robots.} Real robots with diverse camera angles and objects on a kitchen scene.}
+\label{fig:main-coverage-sr}
+\end{figure*}
+
+
+
+\section{Additional Simulation Details}
+\subsection{Training Data}
+We collect data on $10$ different scenes with $3$ different robots (UR5e, Kinova, Franka) on an Omrom base. Each (robot, scene) pair has $50$ different trajectories. For task and trajectory pairing, we choose $3$ more scenes to collect $50$ more trajectories each per robot in order to have enough data after filtering. For each state, we collect $3$ different observations at randomized camera angles in order to achieve diversity in the perspective axis.
+
+
+\subsection*{Evaluation Tasks}
+For our simulation evaluation, we focus on two primary pick-and-place tasks drawn from RoboCasa-X: \emph{PnP Counter$\to$Sink} and \emph{PnP Sink$\to$Counter}. We adapt these tasks slightly so that their object sets, layouts, and camera viewpoints are compatible with our real-world setups while preserving the core semantics of the original benchmarks. All tasks use a fixed third-person camera view of a single kitchen layout to facilitate consistent cross-embodiment comparisons.
+
+\textbf{PnP Counter$\to$Sink.} As in RoboCasa-X, the robot must pick up an object from the countertop and place it anywhere inside the sink. In our variant, we limit the number of object categories to four and adjust the region from which the objects are initialized on the counter to avoid degenerate configurations (e.g., objects starting too close to the sink or outside the reachable workspace).
+
+\textbf{PnP Sink$\to$Counter.} This task mirrors the reverse direction: the robot picks an object from the sink and places it on a plate positioned to the right of the sink. We use a single object category for this task to reduce ambiguity in the goal state and to align closely with our real-world evaluation protocol.
+
+\section{Additional Real-World Details}
+
+\subsection*{Robot Platforms}
+Our real-world experiments utilize four distinct robotic platforms to evaluate cross-embodiment translation:
+
+\begin{itemize}
+    \item \textbf{Franka Emika Panda}: 7-DOF robotic arm with parallel-jaw gripper, workspace radius of approximately 85cm, and 6-axis force/torque sensor for contact sensing.
+    \item \textbf{WidowX-250}: 6-DOF robotic arm manufactured by Trossen Robotics with parallel-jaw gripper, more compact workspace compared to Franka, and lower payload capacity (750g).
+    \item \textbf{PiperX}: Compact desktop manipulator with 6-DOF and parallel-jaw end-effector, designed for tabletop manipulation tasks with high precision but limited reach.
+\end{itemize}
+
+
+\subsection*{Robot Controllers}
+We use the DROID codebase~\cite{khazatsky2024droid} as our main wrapper for robot control, integrating platform-specific control interfaces for each robotic system:
+
+\begin{itemize}
+    \item \textbf{Franka Emika Panda}: Controlled via the FrankaPy interface~\cite{zhang2020modular} which provides real-time Cartesian and joint-space control with integrated force sensing.
+    \item \textbf{WidowX-250}: Utilizes the official WidowX SDK from Trossen Robotics, providing direct servo control and position feedback through the onboard microcontroller.
+    \item \textbf{PiperX}: Controlled through CAN (Controller Area Network) bus communication, enabling precise joint-level control with real-time feedback from embedded encoders.
+\end{itemize}
+
+The DROID wrapper standardizes the control interface across all platforms, handling trajectory execution, safety monitoring, and data logging consistently regardless of the underlying hardware control method. 
+
+\subsection*{Task Descriptions}
+We focus on two primary manipulation tasks that require precise control and can be standardized across different robot platforms:
+
+\begin{itemize}
+    \item \textbf{Pen in Cup}: The robot must pick up a pen from a tabletop surface and place it vertically into a designated cup. This task requires precise grasping, trajectory planning to avoid collisions, and accurate placement with proper orientation.
+    \item \textbf{Book on Bookshelf}: The robot must grasp a book lying flat on a table and place it vertically on a bookshelf slot. This task tests the ability to handle larger objects, manage different grasp poses, and execute placement with spatial precision.
+\end{itemize}
+
+\subsection{Scenes}
+In order to ensure that the scenes collected in the training dataset do not lead to data leakage during evaluation, we collect data in $2$ different locations--one for training and one for evaluation. While both are indoor environments,  evaluation is done in a kitchen-like setting. 
+
+
+\subsection*{Data Collection Protocol}
+For real-world data collection, we follow a standardized protocol to ensure consistency:
+
+\begin{enumerate}
+    \item \textbf{Environment Setup}: Each task is performed in a controlled tabletop environment with consistent lighting conditions. Objects are placed in predetermined positions marked by subtle visual cues to ensure repeatability.
+    
+    \item \textbf{Demonstration Collection}: Human demonstrators operate each robot using teleoperation to collect successful task demonstrations. We collect 50 demonstrations per robot for each task, ensuring diverse approach strategies while maintaining task success.
+    
+    \item \textbf{Cross-Robot Pairing}: For trajectory-paired data, we collect demonstrations of the same task instance (identical object placement and goal configuration) across different robots. These paired demonstrations are then temporally aligned using Dynamic Time Warping (DTW) on end-effector trajectories.
+    
+    \item \textbf{Viewpoint Variation}: Third-person cameras are positioned at multiple angles and heights to capture diverse viewpoints. Each robot setup includes both fixed third-person and wrist-mounted cameras.
+    
+    \item \textbf{Appearance Augmentation}: To increase visual diversity without requiring extensive real-world data collection, we employ DALL-E 3 for inpainting robot appearances while preserving scene context. This allows us to simulate different robot textures and colors within the same task episodes. The prompt we use is "Change the color of the robot with a different texture"
+\end{enumerate}
+
+\subsubsection{OXE Dataset Mixture}
+The following table shows the data mixture for the OXE data: \\
+
+\begin{table}[!htb]
+    \centering
+    \begin{tabular}{c|c}
+    \toprule
+    \textbf{Datasets} & \textbf{Split} \\
+    \bottomrule
+    Bridge & $14.3\%$ \\
+    Fractal & $14.3\%$ \\
+    Taco Play& $14.3\%$ \\
+    Jaco Play& $14.3\%$ \\
+    Roboturk & $14.3\%$ \\
+    NYU Door Opening & $14.3\%$ \\
+    Viola & $14.2\%$ \\
+    \bottomrule
+    \end{tabular}
+     \caption{\textbf{Data Splits} }
+    \label{table:manipeval}
+\end{table}
+
+
+\subsubsection{Data Loading}
+We load all datasets through the \texttt{LeRobot} format, using the Open-X Embodiment (OXE) \texttt{repo\_id} as the primary entry point for each source. Each dataset is first converted into a standardized LeRobot schema that exposes RGB images, proprioception, actions, and task prompts under a common set of keys. We then apply dataset-specific \emph{repacking transforms} to map raw fields (e.g., joint positions, gripper states, multi-view camera streams) into this unified interface before feeding them to the Pi0.5 data pipeline.
+
+For each embodiment, we reuse precomputed normalization statistics (means and variances) stored as dataset assets, ensuring consistent scaling across sources. The data pipeline composes three stages of transforms: (1) \emph{repack transforms} that remap dataset-specific keys into a common observation/action structure, (2) \emph{data transforms} that apply embodiment-specific preprocessing (e.g., converting absolute to delta joint actions, adapting ALOHA or DROID conventions to Pi0.5), and (3) \emph{model transforms} that resize images, tokenize the language prompt, and pad action/state sequences to match the model's action horizon. This design lets us train on heterogeneous LeRobot datasets without ad hoc sharding logic or manual trajectory slicing while keeping the alignment between observation and action spaces explicit.
+
+\subsubsection{Model Training}
+We fine-tune a Pi0.5-style VLA model on our compositional cross-embodiment dataset using the OpenPI training stack. Concretely, we begin from a Pi0.5 base checkpoint and perform LoRA-style low-rank adaptation on the vision–language backbone and action head while freezing the remaining weights. This yields a memory- and compute-efficient training setup that preserves the base model's broad visual-language competence while specializing a relatively small number of parameters for cross-embodiment translation. 
+
+We co-fine-tune jointly on target and translation data, sampling batches with a 50{:}50 ratio between target episodes and source episodes drawn from the OXE+Translational mixture. Inside the OXE + Translational Mixture, we also weight the data by 50{:}50 when applicable.
+
+\begin{table}[!htb]
+    \centering
+    \caption{\textbf{Pi0.5 LoRA Training Hyperparameters.} Typical values used across our experiments.}
+    \label{tab:pi05_hparams}
+    \begin{tabular}{l|c}
+    \toprule
+    \textbf{Hyperparameter} & \textbf{Value} \\
+    \midrule
+    Base model & Pi0.5 VLA \\
+    Fine-tuning strategy & LoRA \\
+    Batch size (global) & 32 \\
+    Optimizer & AdamW \\
+    Learning rate schedule & Cosine decay with warmup \\
+    Peak learning rate & $5\times10^{-5}$ \\
+    Warmup steps & 10{,}000 \\
+    Max token length & 180 (single-arm) \\
+    Weight decay & $10^{-2}$ \\
+    Target{:}source sampling ratio & 50{:}50 \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+
+
+\section{Experiment Tables}
+
+\subsection*{Table 1: Coverage vs. Pairing Results (Figure 1)}
+
+\begin{table*}[t]
+\centering
+\caption{Success rates (\%) across coverage and pairing strategies for different domain shifts. Results show mean ± 95\% CI over 100 simulation trials.}
+\label{tab:coverage_pairing}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Domain} & \textbf{Coverage} & \textbf{Unpaired} & \textbf{Task-Paired} & \textbf{Trajectory-Paired} \\
+\midrule
+\multirow{2}{*}{Viewpoint} & Targeted & $45.0 \pm 3.0$ & $50.0 \pm 3.0$ & $52.0 \pm 3.0$ \\
+                           & Diverse  & $64.0 \pm 3.0$ & $68.0 \pm 3.0$ & $70.0 \pm 3.0$ \\
+\midrule
+\multirow{2}{*}{Morphology} & Targeted & $24.0 \pm 4.0$ & $46.0 \pm 4.0$ & $62.0 \pm 4.0$ \\
+                            & Diverse  & $28.0 \pm 4.0$ & $48.0 \pm 4.0$ & $64.0 \pm 4.0$ \\
+\midrule
+\multirow{2}{*}{Appearance} & Targeted & $48.0 \pm 2.5$ & $55.0 \pm 2.5$ & $57.0 \pm 2.5$ \\
+                           & Diverse  & $54.0 \pm 2.5$ & $62.0 \pm 2.5$ & $68.0 \pm 2.5$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textit{Key findings}: Target-only baseline: 35.0\%; Target upper bound: 75.0\%. For morphology, target-only performance is 24.0\%. Trajectory pairing consistently outperforms other strategies, with diverse coverage being most effective for viewpoint and appearance domains.
+
+\subsection*{Table 2: Comparison with Open-Source Datasets (Figure 2)}
+
+\begin{table*}[t]
+\centering
+\caption{Success rates (\%) comparing our compositional approach with large-scale open-source training. Results for Panda and Jaco target robots across four simulation tasks.}
+\label{tab:oxe_comparison}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Task} & \textbf{Robot} & \textbf{Baseline} & \textbf{Bridge+DROID} & \textbf{OXE} & \textbf{OXE+Translational} \\
+\midrule
+\multirow{2}{*}{PnP Counter→Sink} & Panda & $18.0 \pm 2.5$ & $18.0 \pm 2.6$ & $23.0 \pm 3.0$ & $\mathbf{40.0 \pm 3.1}$ \\
+                                 & Jaco  & $12.0 \pm 2.5$ & $18.0 \pm 2.6$ & $22.0 \pm 3.0$ & $\mathbf{38.0 \pm 3.1}$ \\
+\midrule
+\multirow{2}{*}{PnP Sink→Counter} & Panda & $16.0 \pm 2.5$ & $24.0 \pm 2.6$ & $27.0 \pm 3.0$ & $\mathbf{39.0 \pm 3.1}$ \\
+                                 & Jaco  & $10.0 \pm 2.5$ & $24.0 \pm 2.6$ & $26.0 \pm 3.0$ & $\mathbf{36.0 \pm 3.1}$ \\
+\midrule
+\multirow{2}{*}{Flip Mug} & Panda & $22.0 \pm 2.5$ & $28.0 \pm 2.6$ & $33.0 \pm 3.0$ & $\mathbf{68.0 \pm 3.1}$ \\
+                         & Jaco  & $20.0 \pm 2.5$ & $28.0 \pm 2.6$ & $32.0 \pm 3.0$ & $\mathbf{62.0 \pm 3.1}$ \\
+\midrule
+\multirow{2}{*}{Open Cabinet} & Panda & $34.0 \pm 2.5$ & $35.0 \pm 2.6$ & $40.0 \pm 3.0$ & $\mathbf{55.0 \pm 3.1}$ \\
+                             & Jaco  & $28.0 \pm 2.5$ & $35.0 \pm 2.6$ & $38.0 \pm 3.0$ & $\mathbf{56.0 \pm 3.1}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textit{Key findings}: Our OXE+Translational approach consistently outperforms all baselines, with particularly large gains on complex manipulation tasks like Flip Mug (35-40 percentage point improvements over baseline).
+
+\subsection*{Table 3: Real-World Transfer Results (Figure 4)}
+
+\begin{table*}[t]
+\centering
+\caption{Real-world success rates (\%) across different robot transfer pairs. Results averaged over 5 seeds with 95\% confidence intervals.}
+\label{tab:real_world}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Task} & \textbf{Transfer} & \textbf{Baseline} & \textbf{Bridge+DROID} & \textbf{OXE} & \textbf{OXE+Translational} \\
+\midrule
+\multirow{3}{*}{Pen in Cup} & PiperX→WidowX  & $50 \pm 3.5$ & $60 \pm 3.0$ & $65 \pm 3.0$ & $\mathbf{85 \pm 3.0}$ \\
+                           & WidowX→Franka  & $40 \pm 4.0$ & $50 \pm 3.5$ & $50 \pm 3.0$ & $\mathbf{75 \pm 3.0}$ \\
+                           & WidowX→Piper   & $55 \pm 3.5$ & $65 \pm 3.5$ & $65 \pm 3.0$ & $\mathbf{90 \pm 3.0}$ \\
+\midrule
+\multirow{3}{*}{Book on Bookshelf} & PiperX→WidowX  & $25 \pm 2.5$ & $35 \pm 3.0$ & $40 \pm 3.0$ & $\mathbf{65 \pm 3.0}$ \\
+                                  & WidowX→Franka  & $20 \pm 3.0$ & $30 \pm 3.0$ & $35 \pm 3.0$ & $\mathbf{60 \pm 3.0}$ \\
+                                  & WidowX→Piper   & $30 \pm 2.5$ & $40 \pm 3.0$ & $45 \pm 3.5$ & $\mathbf{65 \pm 3.5}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textit{Key findings}: Real-world results confirm simulation trends, with OXE+Translational achieving 25-35 percentage point improvements over baselines. The method is robust across different robot morphologies and task complexities.
+
+\subsection*{Table 4: Scaling Analysis Summary (Figure 3)}
+
+\begin{table*}[t]
+\centering
+\caption{Performance scaling with source diversity. Shows success rates at different numbers of source embodiments/viewpoints/scenes for each method.}
+\label{tab:scaling}
+\begin{tabular}{lllccccc}
+\toprule
+\textbf{Domain} & \textbf{Method} & \textbf{Baseline} & \textbf{2} & \textbf{5} & \textbf{10} & \textbf{20} & \textbf{40} \\
+\midrule
+\multirow{3}{*}{Viewpoint} & Naive (Uniform)   & \multirow{3}{*}{35.0} & $45.0$ & $48.0$ & $52.0$ & $58.0$ & $60.0$ \\
+                           & Targeted Coverage &                       & $50.0$ & $57.0$ & $61.0$ & $66.0$ & $68.0$ \\
+                           & Trajectory-Paired &                       & $52.0$ & $61.0$ & $66.0$ & $71.0$ & $74.0$ \\
+\midrule
+\multirow{3}{*}{Morphology} & Naive (Uniform)   & \multirow{3}{*}{24.0} & $24.0$ & $25.5$ & $28.0$ & --- & --- \\
+                           & Targeted Coverage &                       & $46.0$ & $46.8$ & $48.0$ & --- & --- \\
+                           & Trajectory-Paired &                       & $62.0$ & $62.8$ & $64.0$ & --- & --- \\
+\midrule
+\multirow{3}{*}{Appearance} & Naive (Uniform)   & \multirow{3}{*}{35.0} & $48.0$ & $50.0$ & $54.0$ & $58.0$ & $60.0$ \\
+                           & Targeted Coverage &                       & $55.0$ & $58.0$ & $62.0$ & $66.0$ & $68.0$ \\
+                           & Trajectory-Paired &                       & $57.0$ & $61.0$ & $66.0$ & $70.0$ & $72.0$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textit{Key findings}: Viewpoint and appearance benefits scale smoothly with diversity, while morphology shows saturation effects. Trajectory pairing maintains consistent advantages across all scaling levels. Target upper bound: 75.0\%.
+

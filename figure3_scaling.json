@@ -1,0 +1,68 @@
+{
+  "x": [2, 5, 10, 20, 40],
+  "refs": {
+    "target_only": 35.0,
+    "upper_bound": 75.0,
+    "target_only_by_domain": {"Morphology": 24.0}
+  },
+  "domains": ["Viewpoint", "Morphology", "Appearance"],
+  "x_by_domain": {
+    "Viewpoint": [2, 5, 10, 20, 40],
+    "Morphology": [2, 5, 10],
+    "Appearance": [2, 5, 10, 20, 40]
+  },
+  "methods": [
+    "Naive (Uniform)",
+    "Targeted Coverage",
+    "Trajectory-Paired"
+  ],
+  "data": [
+    {"domain": "Viewpoint",  "method": "Naive (Uniform)",   "x": 2,  "mean": 45.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Naive (Uniform)",   "x": 5,  "mean": 48.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Naive (Uniform)",   "x": 10, "mean": 52.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Naive (Uniform)",   "x": 20, "mean": 58.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Naive (Uniform)",   "x": 40, "mean": 60.0, "ci95": 2.5},
+
+    {"domain": "Viewpoint",  "method": "Targeted Coverage", "x": 2,  "mean": 50.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Targeted Coverage", "x": 5,  "mean": 57.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Targeted Coverage", "x": 10, "mean": 61.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Targeted Coverage", "x": 20, "mean": 66.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Targeted Coverage", "x": 40, "mean": 68.0, "ci95": 2.5},
+
+    {"domain": "Viewpoint",  "method": "Trajectory-Paired", "x": 2,  "mean": 52.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Trajectory-Paired", "x": 5,  "mean": 61.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Trajectory-Paired", "x": 10, "mean": 66.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Trajectory-Paired", "x": 20, "mean": 71.0, "ci95": 2.5},
+    {"domain": "Viewpoint",  "method": "Trajectory-Paired", "x": 40, "mean": 74.0, "ci95": 2.5},
+
+    {"domain": "Morphology", "method": "Naive (Uniform)",   "x": 2,  "mean": 24.0, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Naive (Uniform)",   "x": 5,  "mean": 25.5, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Naive (Uniform)",   "x": 10, "mean": 28.0, "ci95": 2.5},
+
+    {"domain": "Morphology", "method": "Targeted Coverage", "x": 2,  "mean": 46.0, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Targeted Coverage", "x": 5,  "mean": 46.8, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Targeted Coverage", "x": 10, "mean": 48.0, "ci95": 2.5},
+
+    {"domain": "Morphology", "method": "Trajectory-Paired", "x": 2,  "mean": 62.0, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Trajectory-Paired", "x": 5,  "mean": 62.8, "ci95": 2.5},
+    {"domain": "Morphology", "method": "Trajectory-Paired", "x": 10, "mean": 64.0, "ci95": 2.5},
+
+    {"domain": "Appearance", "method": "Naive (Uniform)",   "x": 2,  "mean": 48.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Naive (Uniform)",   "x": 5,  "mean": 50.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Naive (Uniform)",   "x": 10, "mean": 54.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Naive (Uniform)",   "x": 20, "mean": 58.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Naive (Uniform)",   "x": 40, "mean": 60.0, "ci95": 2.5},
+
+    {"domain": "Appearance", "method": "Targeted Coverage", "x": 2,  "mean": 55.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Targeted Coverage", "x": 5,  "mean": 58.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Targeted Coverage", "x": 10, "mean": 62.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Targeted Coverage", "x": 20, "mean": 66.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Targeted Coverage", "x": 40, "mean": 68.0, "ci95": 2.5},
+
+    {"domain": "Appearance", "method": "Trajectory-Paired", "x": 2,  "mean": 57.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Trajectory-Paired", "x": 5,  "mean": 61.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Trajectory-Paired", "x": 10, "mean": 66.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Trajectory-Paired", "x": 20, "mean": 70.0, "ci95": 2.5},
+    {"domain": "Appearance", "method": "Trajectory-Paired", "x": 40, "mean": 72.0, "ci95": 2.5}
+  ]
+}

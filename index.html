@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross-Embodiment Translation for Generalist Robots</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="nav-container">
+      <div class="brand">
+        <span class="brand-title">Cross-Embodiment Robot Analogies</span>
+        <span class="brand-subtitle">Data-Centric Strategies for Cross-Embodiment Policies</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#method">Method</a>
+        <a href="#experiments">Experiments</a>
+        <a href="#results">Results</a>
+        <a href="#real-robots">Real Robots</a>
+        <a href="#paper">Paper</a>
+      </nav>
+    </div>
+
+    <section class="hero">
+      <div class="hero-text">
+        <h1>Cross-Embodiment Translation</h1>
+        <p>
+          How should we collect data so that demonstrations from one robot directly
+          help another? We study <strong>coverage</strong> and <strong>pairing</strong>
+          strategies across embodiments and show that structured, trajectory-paired
+          datasets unlock substantial transfer for generalist robot policies.
+        </p>
+        <div class="hero-highlights">
+          <div class="pill">Viewpoint</div>
+          <div class="pill">Morphology</div>
+          <div class="pill">Appearance</div>
+        </div>
+        <div class="hero-cta">
+          <a class="btn primary" href="#results">View Results</a>
+          <a class="btn secondary" href="#paper">Read the Paper</a>
+        </div>
+      </div>
+      <div class="hero-image">
+        <img src="images/teaser_v2.png" alt="Teaser: Cross-Embodiment Translation" />
+      </div>
+    </section>
+  </header>
+
+  <main>
+    <section id="overview" class="section section-alt">
+      <div class="section-inner">
+        <h2>Overview</h2>
+        <div class="two-column">
+          <div>
+            <p>
+              Generalist robot policies are now trained on increasingly large, heterogeneous
+              cross-embodiment datasets. While scale clearly helps, it remains unclear
+              <em>what</em> is actually being transferred when we mix data from many robots,
+              morphologies, and viewpoints.
+            </p>
+            <p>
+              This work asks: <strong>what kinds of cross-embodiment data actually help a
+              policy adapt to a new robot under a fixed budget of target demonstrations?</strong>
+              We introduce the notion of <strong>cross-embodiment translation</strong>—the
+              ability to re-use demonstrations from one embodiment to execute the same task
+              on another—and systematically study how data collection along three axes
+              (viewpoint, morphology, appearance) affects this capability.
+            </p>
+          </div>
+          <div class="highlight-box">
+            <h3>Key Contributions</h3>
+            <ul>
+              <li>Framework decomposing cross-embodiment gaps into viewpoint, morphology, and appearance.</li>
+              <li>Systematic study of <strong>coverage</strong> (targeted vs. diverse) and
+                  <strong>pairing</strong> (unpaired, task-paired, trajectory-paired).</li>
+              <li>Compositional dataset design that outperforms large open-source datasets such as OXE.</li>
+              <li>Real-robot evaluations on Franka, WidowX, and PiperX showing substantial gains.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="section">
+      <div class="section-inner">
+        <h2>Data-Centric Method</h2>
+        <p>
+          We view data for cross-embodiment learning through two orthogonal design axes:
+          <strong>coverage</strong>—how broadly we span the space of scenes, viewpoints, and
+          morphologies—and <strong>pairing</strong>—how tightly demonstrations are aligned
+          across embodiments.
+        </p>
+        <div class="two-column">
+          <div>
+            <h3>Coverage</h3>
+            <ul>
+              <li><strong>Targeted</strong>: Select demonstrations that explicitly fill gaps relative to
+                  the target robot (e.g., missing camera poses, gripper types, or kinematic regimes).</li>
+              <li><strong>Diverse</strong>: Collect broadly varied demonstrations without target-aware
+                  selection, emphasizing visual and embodiment breadth.</li>
+            </ul>
+
+            <h3>Pairing</h3>
+            <ul>
+              <li><strong>Unpaired</strong>: Independent demonstrations linked only by task labels.</li>
+              <li><strong>Task-Paired</strong>: Same task instance across robots (same objects and goals),
+                  weakly aligned.</li>
+              <li><strong>Trajectory-Paired</strong>: Time-aligned executions with similar object-centric
+                  trajectories, via DTW in both simulation and the real world.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="figure-card wide">
+          <img src="images/coverage_vs_pairing.png" alt="Coverage vs Pairing strategies" />
+          <p class="figure-caption">
+            <strong>Coverage vs. Pairing.</strong> Simulation scenes illustrating how diversity and
+            cross-robot alignment shape transfer.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="experiments" class="section section-alt">
+      <div class="section-inner">
+        <h2>Experiments</h2>
+        <div class="questions">
+          <div>
+            <h3>Core Questions</h3>
+            <ol>
+              <li>Under a fixed budget, which data collection strategy works best for each axis?</li>
+              <li>How does our compositional dataset compare to naive training on large open-source data?</li>
+              <li>How does performance scale as we increase the diversity of source data?</li>
+              <li>Do these trends hold on real robots?</li>
+            </ol>
+            <p>
+              We evaluate Pi0.5-style VLA policies on RoboCasa-based simulation benchmarks and
+              tabletop tasks on Franka, WidowX, PiperX, and related platforms, under strict
+              few-shot constraints on the target robot.
+            </p>
+          </div>
+        </div>
+        <div class="figure-card wide">
+          <img src="images/figure1_main_coverage.png" alt="Coverage vs Pairing main results" />
+          <p class="figure-caption">
+            <strong>Figure 1.</strong> Success rates across coverage&nbsp;&times;&nbsp;pairing for
+            viewpoint, morphology, and appearance.
+          </p>
+        </div>
+        <div class="figure-card wide">
+          <img src="images/figure3_scaling.png" alt="Scaling with diversity" />
+          <p class="figure-caption">
+            <strong>Figure 3.</strong> Scaling behavior as we increase the diversity of source
+            embodiments, viewpoints, and scenes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="section">
+      <div class="section-inner">
+        <h2>Results</h2>
+        <div class="two-column">
+          <div>
+            <h3>Coverage vs. Pairing</h3>
+            <p>
+              Diversity helps most for perceptual shifts (viewpoint and appearance), where broad
+              variation regularizes the encoder and reduces overfitting to specific scenes or cameras.
+              For morphology, however, diversity alone quickly saturates: <strong>targeted coverage and
+              strong trajectory pairing are essential</strong> to bridge action-space differences.
+            </p>
+            <h3>Structure on Top of Scale</h3>
+            <p>
+              Training on large unpaired datasets like OXE provides strong baselines, but
+              <strong>OXE+Translational</strong>—which reweights coverage and adds trajectory-level
+              correspondences—consistently delivers large gains in both simulation and real-world
+              evaluations.
+            </p>
+          </div>
+        </div>
+        <div class="figure-card wide">
+          <img src="images/figure2_oxe_vs_targeted.png" alt="Comparison with OXE and targeted data" />
+          <p class="figure-caption">
+            <strong>Figure 2.</strong> Composed OXE+Translational data outperforms both narrow two-robot
+            pools and large unpaired OXE training.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="real-robots" class="section section-alt">
+      <div class="section-inner">
+        <h2>Real-Robot Transfer</h2>
+        <div class="two-column">
+          <div class="figure-card">
+            <img src="images/sim_robots.png" alt="Simulation robots" />
+            <p class="figure-caption">
+              <strong>Simulation robots.</strong> Diverse simulated embodiments and viewpoints used to
+              study cross-embodiment translation.
+            </p>
+          </div>
+          <div class="figure-card">
+            <img src="images/real_robots.png" alt="Real robots" />
+            <p class="figure-caption">
+              <strong>Real robots.</strong> Physical setups with Franka, WidowX, PiperX, and others in
+              kitchen-like scenes.
+            </p>
+          </div>
+        </div>
+        <div class="figure-card wide">
+          <img src="images/figure4_real_world.png" alt="Real-world transfer results" />
+          <p class="figure-caption">
+            <strong>Figure 4.</strong> Real-world transfer results across multiple robot pairs and tasks:
+            structured coverage and trajectory pairing reliably improve success by 25–40 points.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="paper" class="section">
+      <div class="section-inner">
+        <h2>Paper</h2>
+        <p>
+          This website summarizes the main ideas, methods, and results from our CVPR paper on
+          <strong>Cross-Embodiment Translation</strong>. Please refer to the full paper PDF for complete
+          details, ablations, and experimental tables.
+        </p>
+        <div class="paper-links">
+          <a class="btn primary" href="../rss/main_results.pdf" target="_blank" rel="noopener">
+            View Paper (PDF)
+          </a>
+          <!-- If you have an arXiv link, replace the placeholder below. -->
+          <a class="btn secondary" href="#" onclick="return false;">
+            arXiv (coming soon)
+          </a>
+        </div>
+
+        <div class="bibtex">
+          <h3>BibTeX</h3>
+          <pre>
+@inproceedings{cross_embodiment_translation_2025,
+  title     = {Cross-Embodiment Translation: Data-Centric Strategies for Multi-Robot Policies},
+  booktitle = {CVPR},
+  year      = {2025}
+}</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>&copy; 2025 Cross-Embodiment Translation.</span>
+      <span>Built from the CVPR paper supplement.</span>
+    </div>
+  </footer>
+</body>
+</html>
+
+
