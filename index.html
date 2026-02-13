@@ -43,7 +43,7 @@
         </div>
       </div>
       <div class="hero-image">
-        <img src="images/teaser_v2.png" alt="Teaser: Data Analogies Enable Efficient Cross-Embodiment Learning" />
+        <img src="teaser_v5.png" alt="Teaser: Data Analogies Enable Efficient Cross-Embodiment Learning" />
       </div>
     </section>
   </header>
@@ -191,6 +191,56 @@
 
     <section id="real-robots" class="section section-alt">
       <div class="section-inner">
+        <h3>Example Data</h3>
+        <p>Examples of trajectory-paired demonstrations across different embodiments and viewpoints.</p>
+        <div class="carousel-container">
+          <button class="carousel-btn carousel-btn-left" aria-label="Previous">&larr;</button>
+          <div class="carousel-track">
+            <div class="carousel-slide">
+              <img src="data_gifs/episode_000000.gif" alt="Episode 0" />
+            </div>
+            <div class="carousel-slide">
+              <img src="data_gifs/panda_episode_00_wrist.gif" alt="Panda wrist camera episode 0" />
+            </div>
+            <div class="carousel-slide">
+              <img src="data_gifs/panda_episode_01_wrist.gif" alt="Panda wrist camera episode 1" />
+            </div>
+            <div class="carousel-slide">
+              <img src="data_gifs/panda_episode_06_wrist.gif" alt="Panda wrist camera episode 6" />
+            </div>
+            <div class="carousel-slide">
+              <img src="data_gifs/panda_episode_07_wrist.gif" alt="Panda wrist camera episode 7" />
+            </div>
+          </div>
+          <button class="carousel-btn carousel-btn-right" aria-label="Next">&rarr;</button>
+        </div>
+
+        <h3>Evaluations</h3>
+        <div class="carousel-container">
+          <button class="carousel-btn carousel-btn-left" aria-label="Previous">&larr;</button>
+          <div class="carousel-track">
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_02_main.gif" alt="Panda evaluation episode 2" />
+            </div>
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_03_main.gif" alt="Panda evaluation episode 3" />
+            </div>
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_04_main.gif" alt="Panda evaluation episode 4" />
+            </div>
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_06_main.gif" alt="Panda evaluation episode 6" />
+            </div>
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_08_main.gif" alt="Panda evaluation episode 8" />
+            </div>
+            <div class="carousel-slide">
+              <img src="evaluation_images/panda_episode_09_main.gif" alt="Panda evaluation episode 9" />
+            </div>
+          </div>
+          <button class="carousel-btn carousel-btn-right" aria-label="Next">&rarr;</button>
+        </div>
+
         <h2>Real-Robot Transfer</h2>
         <div class="two-column">
           <div class="figure-card">
@@ -255,6 +305,22 @@
       <span>Built from the CVPR paper supplement.</span>
     </div>
   </footer>
+  <script>
+    document.querySelectorAll('.carousel-container').forEach(container => {
+      const track = container.querySelector('.carousel-track');
+      const leftBtn = container.querySelector('.carousel-btn-left');
+      const rightBtn = container.querySelector('.carousel-btn-right');
+      const slideWidth = () => track.querySelector('.carousel-slide').offsetWidth + 16;
+
+      leftBtn.addEventListener('click', () => {
+        track.scrollBy({ left: -slideWidth(), behavior: 'smooth' });
+      });
+
+      rightBtn.addEventListener('click', () => {
+        track.scrollBy({ left: slideWidth(), behavior: 'smooth' });
+      });
+    });
+  </script>
 </body>
 </html>
 
